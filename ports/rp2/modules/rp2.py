@@ -231,6 +231,51 @@ _pio_funcs = {
     "set": None,
 }
 
+def delayed_variable_assembly(function, variables=None, **pio_kw):
+    emit = PIOASMEmit(**pio_kw)
+
+    # ensure that all values are in the range of 0-31 < no other constants are 
+    # valid in pio code
+    if any((0 > value) or (value > 2**5)  for value in variables.values()):
+        raise PIOASMError("invalid value for pio-code constant {}".format(variables))
+
+    def local_asm(function, variables=None):
+        nonlocal emit
+
+        gl = _pio_funcs
+        if variables is not None:
+            gl.update(variables)
+        gl["wrap_target"] = emit.wrap_target
+        gl["wrap"] = emit.wrap
+        gl["label"] = emit.label
+        gl["word"] = emit.word
+        gl["nop"] = emit.nop
+        gl["jmp"] = emit.jmp
+        gl["wait"] = emit.wait
+        gl["in_"] = emit.in_
+        gl["out"] = emit.out
+        gl["push"] = emit.push
+        gl["pull"] = emit.pull
+        gl["mov"] = emit.mov
+        gl["irq"] = emit.irq
+        gl["set"] = emit.set
+
+        old_gl = function.__globals__.copy()
+        function.__globals__.clear()
+        function.__globals__.update(gl)
+
+        emit.start_pass(0)
+        function()
+
+        emit.start_pass(1)
+        function()
+
+        function.__globals__.clear()
+        function.__globals__.update(old_gl)
+
+        return emit.prog
+
+    return local_asm(function, variables)
 
 def asm_pio(**kw):
     emit = PIOASMEmit(**kw)
