@@ -259,22 +259,26 @@ def delayed_variable_assembly(function, variables=None, **pio_kw):
         gl["mov"] = emit.mov
         gl["irq"] = emit.irq
         gl["set"] = emit.set
+        
+        try:
+            old_gl = function.__globals__.copy()
+            function.__globals__.clear()
+            function.__globals__.update(gl)
 
-        old_gl = function.__globals__.copy()
-        function.__globals__.clear()
-        function.__globals__.update(gl)
+            emit.start_pass(0)
+            function()
 
-        emit.start_pass(0)
-        function()
-
-        emit.start_pass(1)
-        function()
-
-        function.__globals__.clear()
-        function.__globals__.update(old_gl)
-
-        return emit.prog
-
+            emit.start_pass(1)
+            function()
+        finally:
+            if variables is not None:
+                for key in variables.keys():
+                    gl.pop(key)
+            function.__globals__.clear()
+            function.__globals__.update(old_gl)
+        
+        return emit.prog        
+        
     return local_asm(function, variables)
 
 def asm_pio(**kw):
@@ -298,19 +302,19 @@ def asm_pio(**kw):
         gl["mov"] = emit.mov
         gl["irq"] = emit.irq
         gl["set"] = emit.set
+        try:
+            old_gl = f.__globals__.copy()
+            f.__globals__.clear()
+            f.__globals__.update(gl)
 
-        old_gl = f.__globals__.copy()
-        f.__globals__.clear()
-        f.__globals__.update(gl)
+            emit.start_pass(0)
+            f()
 
-        emit.start_pass(0)
-        f()
-
-        emit.start_pass(1)
-        f()
-
-        f.__globals__.clear()
-        f.__globals__.update(old_gl)
+            emit.start_pass(1)
+            f()
+        finally:
+            f.__globals__.clear()
+            f.__globals__.update(old_gl)
 
         return emit.prog
 
